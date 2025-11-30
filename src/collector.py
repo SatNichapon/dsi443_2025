@@ -15,6 +15,7 @@ def search_youtube_query(query: str) -> list[dict]:
     next_page_token = None
 
     target_count = config.MAX_VIDEOS_PER_QUERY
+    index_counter = 0  
 
     try:
         while len(videos) < target_count:
@@ -25,7 +26,9 @@ def search_youtube_query(query: str) -> list[dict]:
                 part="id,snippet",
                 type="video",
                 maxResults=fetch_count,
-                pageToken=next_page_token
+                pageToken=next_page_token,
+                order="relevance" 
+
             )
             response = request.execute()
 
@@ -37,12 +40,17 @@ def search_youtube_query(query: str) -> list[dict]:
                 seen_ids.add(vid)
 
                 video_data = {
+                    "query": query,
                     "video_id": vid,
                     "url": f"https://www.youtube.com/watch?v={vid}",
                     "title": item["snippet"]["title"],
-                    "publish_date": item["snippet"]["publishedAt"]
+                    "publish_date": item["snippet"]["publishedAt"],
+                    "description": item["snippet"]["description"],
+                    "index_in_query": index_counter,   
+
                 }
                 videos.append(video_data)
+                index_counter += 1 
 
                 if len(videos) >= target_count:
                     break

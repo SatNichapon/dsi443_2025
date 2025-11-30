@@ -122,7 +122,7 @@ SEARCH_QUERIES = [
 
 
 # -------------------------------------------------------------------------------------------------- sensitive config
-MAX_VIDEOS_PER_QUERY = 3
+MAX_VIDEOS_PER_QUERY = 20
 MAX_WORKERS_ANALYSIS = 1
 DELAY_SECONDS = 50
 # -------------------------------------------------------------------------------------------------- sensitive config
