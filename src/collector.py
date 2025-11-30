@@ -1,40 +1,25 @@
 import logging
 import concurrent.futures
 from googleapiclient.discovery import build
-
-from . import config
+import config
+from config import YOUTUBE_DATA_API_KEY , GEMINI_API_KEY
 
 logger = logging.getLogger(__name__)
 
-def search_youtube_query(query: str, max_results: int) -> list[dict]:
-    """
-    Searches the YouTube Data API (v3) for a specific query and returns rich metadata.
-
-    This function handles API pagination to retrieve the requested number of videos.
-    It constructs a dictionary for each video containing the ID, URL, Title, and Date.
-
-    Args:
-        query (str): The search term to query YouTube with.
-        max_results (int): The maximum number of videos to retrieve for this query.
-
-    Returns:
-        list[dict]: A list of dictionaries, where each dictionary contains:
-            - 'video_id' (str): The unique YouTube ID.
-            - 'url' (str): The full watch URL.
-            - 'title' (str): The video title.
-            - 'publish_date' (str): ISO 8601 publication timestamp.
-    """
-    # construct a resource interacting with an API
+def search_youtube_query(query: str) -> list[dict]:
     youtube = build("youtube", "v3", developerKey=config.YOUTUBE_DATA_API_KEY)
-    logger.info(f"Searching for: '{query}'...")
-    
+    logger.info(f"Searching for: '{query}'.")
+
     videos = []
+    seen_ids = set()
     next_page_token = None
-    
+
+    target_count = config.MAX_VIDEOS_PER_QUERY
+
     try:
-        while len(videos) < max_results:
-            fetch_count = min(50, max_results - len(videos)) # youtube-data-api limit 50 items per request (single API call)
-            
+        while len(videos) < target_count:
+            fetch_count = min(50, target_count - len(videos))
+
             request = youtube.search().list(
                 q=query,
                 part="id,snippet",
@@ -43,51 +28,56 @@ def search_youtube_query(query: str, max_results: int) -> list[dict]:
                 pageToken=next_page_token
             )
             response = request.execute()
-            
-            for item in response.get('items', []):
+
+            for item in response.get("items", []):
+                vid = item["id"]["videoId"]
+
+                if vid in seen_ids:
+                    continue
+                seen_ids.add(vid)
+
                 video_data = {
-                    "video_id": item['id']['videoId'],
-                    "url": f"https://www.youtube.com/watch?v={item['id']['videoId']}",
-                    "title": item['snippet']['title'],
-                    "publish_date": item['snippet']['publishedAt']
+                    "video_id": vid,
+                    "url": f"https://www.youtube.com/watch?v={vid}",
+                    "title": item["snippet"]["title"],
+                    "publish_date": item["snippet"]["publishedAt"]
                 }
                 videos.append(video_data)
-            
-            next_page_token = response.get('nextPageToken')
+
+                if len(videos) >= target_count:
+                    break
+
+            next_page_token = response.get("nextPageToken")
             if not next_page_token:
-                break
-                
+                break  
+
         logger.info(f"Finished '{query}': Found {len(videos)} videos.")
         return videos
 
     except Exception as e:
         logger.error(f"Error searching '{query}': {e}")
-        return set()
+        return []
 
-def run_collection_pipeline() -> list[str]:
-    """
-    Orchestrates parallel searches across all configured queries and removes duplicates.
+   
+def run_collection_pipeline(queries: list[str] | None = None) -> list[dict]:
 
-    It runs multiple instances of 'search_youtube_query' concurrently using a 
-    ThreadPoolExecutor. Results are deduplicated based on the 'video_id' to ensure
-    we don't analyze the same video twice.
+    if queries is None:
+        queries = config.SEARCH_QUERIES
 
-    Returns:
-        list[dict]: A unique list of video metadata dictionaries collected from all queries.
-    """
-    all_videos_map = {}
+    all_videos_map: dict[str, dict] = {}
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(config.SEARCH_QUERIES)) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(queries)) as executor:
         future_to_query = {
-            executor.submit(search_youtube_query, query, config.MAX_VIDEOS_PER_QUERY): query 
-            for query in config.SEARCH_QUERIES
+            executor.submit(search_youtube_query, query): query
+            for query in queries
         }
         
         for future in concurrent.futures.as_completed(future_to_query):
-            videos = future.result()
+            videos = future.result() or []
             for v in videos:
-                # Deduplicate: If video_id is already in map, skip it
-                if v['video_id'] not in all_videos_map:
-                    all_videos_map[v['video_id']] = v
+                vid = v["video_id"]
+                if vid not in all_videos_map:
+                    all_videos_map[vid] = v  
 
     return list(all_videos_map.values())
+
