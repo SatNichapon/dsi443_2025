@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-YOUTUBE_DATA_API_KEY = os.getenv("YOUTUBE_DATA_API_KEY")
+YOUTUBE_DATA_API_KEY = os.getenv("GEMINI_API_KEY_Sho1")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY_Sho2")
 
 if not YOUTUBE_DATA_API_KEY:
@@ -118,8 +118,6 @@ SEARCH_QUERIES = [
     "Charlie Kirk Utah Valley University debate 2025",
     "Charlie Kirk Presidential Medal of Freedom 2025"
 ]
-
-
 
 # -------------------------------------------------------------------------------------------------- sensitive config
 MAX_VIDEOS_PER_QUERY = 20
